@@ -7,6 +7,15 @@ app.use(express.json());
 
 app.post("/", async (req, res) => {
   try {
+
+    if (req.body.secret !== process.env.APP_SECRET) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    if (!req.body.input || req.body.input.length < 5) {
+      return res.status(400).json({ error: "Invalid input" });
+    }
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -16,9 +25,16 @@ app.post("/", async (req, res) => {
       body: JSON.stringify({
         model: "gpt-4.1-mini",
         messages: [
-          { role: "user", content: req.body.input }
+          {
+            role: "system",
+            content: "You are an IELTS Writing examiner. Give band score and Socratic questions."
+          },
+          {
+            role: "user",
+            content: req.body.input
+          }
         ],
-        max_tokens: 800
+        max_tokens: 700
       })
     });
 
@@ -36,5 +52,4 @@ app.post("/", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 app.listen(process.env.PORT || 3000);
