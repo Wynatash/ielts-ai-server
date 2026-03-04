@@ -5,21 +5,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ====== RATE LIMIT MEMORY STORE ======
 let requestLog = {};
 
-// ====== MAIN ROUTE ======
 app.post("/", async (req, res) => {
   try {
 
-    // ====== 1. SECRET CHECK ======
+    // ===== SECRET CHECK =====
     if (req.body.secret !== process.env.APP_SECRET) {
-      return res.status(403).json({
-        error: "Unauthorized"
-      });
+      return res.status(403).json({ error: "Unauthorized" });
     }
 
-    // ====== 2. RATE LIMIT (5 REQUEST / MINUTE / IP) ======
+    // ===== RATE LIMIT =====
     const ip =
       req.headers["x-forwarded-for"] ||
       req.socket.remoteAddress ||
@@ -29,33 +25,32 @@ app.post("/", async (req, res) => {
 
     if (!requestLog[ip]) requestLog[ip] = [];
 
-    // Giữ lại request trong 60 giây
     requestLog[ip] = requestLog[ip].filter(
       timestamp => now - timestamp < 60000
     );
 
     if (requestLog[ip].length >= 5) {
       return res.status(429).json({
-        error: "Too many requests. Please wait 1 minute."
+        error: "Too many requests. Wait 1 minute."
       });
     }
 
     requestLog[ip].push(now);
 
-    // ====== 3. INPUT VALIDATION ======
-    if (!req.body.input || req.body.input.length < 10) {
+    // ===== INPUT VALIDATION =====
+    if (!req.body.input || req.body.input.length < 20) {
       return res.status(400).json({
-        error: "Input too short"
+        error: "Essay too short"
       });
     }
 
     if (req.body.input.length > 4000) {
       return res.status(400).json({
-        error: "Input too long"
+        error: "Essay too long"
       });
     }
 
-    // ====== 4. CALL OPENAI ======
+    // ===== OPENAI CALL =====
     const response = await fetch(
       "https://api.openai.com/v1/chat/completions",
       {
@@ -67,11 +62,38 @@ app.post("/", async (req, res) => {
         },
         body: JSON.stringify({
           model: "gpt-4.1-mini",
+          temperature: 0.3,
           messages: [
             {
               role: "system",
-              content:
-                "You are an IELTS Writing examiner. Give band score, detailed feedback, and Socratic questions to help improvement."
+              content: `
+You are an IELTS Writing Task 1 examiner.
+
+Return STRICT JSON only.
+
+Rules:
+- Give overall band (0-9).
+- Give 1 short feedback paragraph (max 120 words).
+- Give breakdown: TR, CC, LR, GRA.
+- If band >= 8.0 → socratic_questions = [].
+- Otherwise give exactly 5 Socratic questions.
+- No hints.
+- No explanations outside JSON.
+
+Format:
+
+{
+  "overall_band": number,
+  "breakdown": {
+    "TR": number,
+    "CC": number,
+    "LR": number,
+    "GRA": number
+  },
+  "feedback": "text",
+  "socratic_questions": []
+}
+`
             },
             {
               role: "user",
@@ -86,27 +108,25 @@ app.post("/", async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
+      return res.status(500).json({ openai_error: data });
+    }
+
+    const raw = data.choices?.[0]?.message?.content || "{}";
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
       return res.status(500).json({
-        openai_error: data
+        error: "AI returned invalid JSON"
       });
     }
 
-    return res.json({
-      output_text:
-        data.choices?.[0]?.message?.content || ""
-    });
+    return res.json(parsed);
 
   } catch (err) {
-    return res.status(500).json({
-      error: err.message
-    });
+    return res.status(500).json({ error: err.message });
   }
 });
 
-// ====== HEALTH CHECK (OPTIONAL) ======
-app.get("/", (req, res) => {
-  res.send("IELTS AI Server Running");
-});
-
-// ====== START SERVER ======
 app.listen(process.env.PORT || 3000);
