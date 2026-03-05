@@ -1,72 +1,59 @@
 import express from "express";
 import cors from "cors";
-import axios from "axios";
+import fetch from "node-fetch";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+const PORT = process.env.PORT || 3000;
+
 app.post("/grade", async (req, res) => {
   try {
-    const essay = req.body.essay;
 
-    if (!essay) {
-      return res.status(400).json({ error: "Missing essay" });
+    const { input, secret } = req.body;
+
+    if (secret !== process.env.APP_SECRET) {
+      return res.status(403).json({ error: "Unauthorized" });
     }
 
-    const prompt = `
-You are an IELTS Writing examiner.
-
-Analyze the essay and give feedback:
-
-1. Estimated band score (0-9)
-2. Grammar mistakes
-3. Vocabulary feedback
-4. Suggestions for improvement
-
-Essay:
-${essay}
-`;
-
-    const response = await axios.post(
-      "https://api.openai.com/v1/responses",
-      {
-        model: "gpt-4.1-mini",
-        input: prompt,
-        max_output_tokens: 800
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    const output = response.data.output_text;
-
-    if (!output) {
-      return res.json({
-        result: "AI did not return content."
-      });
-    }
-
-    res.json({
-      result: output
+      body: JSON.stringify({
+        model: "gpt-5-nano",
+        input: input,
+        max_output_tokens: 1200
+      })
     });
 
-  } catch (error) {
-    console.error(error.response?.data || error.message);
+    const data = await response.json();
 
+    const text =
+      data.output?.[0]?.content?.[0]?.text ||
+      data.output_text ||
+      "";
+
+    res.json({
+      output_text: text
+    });
+
+  } catch (err) {
+    console.error(err);
     res.status(500).json({
-      error: error.response?.data || error.message
+      error: err.message
     });
   }
 });
 
-const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => {
+  res.send("IELTS AI Server Running");
+});
 
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log("Server running on port " + PORT);
 });
