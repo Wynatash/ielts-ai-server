@@ -13,8 +13,11 @@ app.get("/", (req, res) => {
 
 app.post("/grade", async (req, res) => {
 
-  const essay = req.body.essay;
-  const question = req.body.question;
+  if (req.body.secret !== "IELTS2026_SECURE") {
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+
+  const prompt = req.body.input;
 
   try {
 
@@ -25,28 +28,22 @@ app.post("/grade", async (req, res) => {
         messages: [
           {
             role: "user",
-            content: `Grade this IELTS Task 1 essay and give band score and feedback.
-
-Question:
-${question}
-
-Essay:
-${essay}`
+            content: prompt
           }
         ],
-        max_tokens: 500
+        max_tokens: 600
       },
       {
         headers: {
-          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
         }
       }
     );
 
-    const text = response.data.choices[0].message.content;
+    const text = response.data.choices?.[0]?.message?.content || "";
 
     res.json({
-      output: text
+      output_text: text
     });
 
   } catch (err) {
@@ -54,7 +51,7 @@ ${essay}`
     console.log(err.response?.data || err.message);
 
     res.status(500).json({
-      error: "AI call failed"
+      error: err.response?.data || err.message
     });
 
   }
@@ -64,5 +61,5 @@ ${essay}`
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Server running");
+  console.log("AI Server Running");
 });
