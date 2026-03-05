@@ -27,7 +27,7 @@ app.post("/", async (req, res) => {
             content: req.body.input
           }
         ],
-        max_tokens: 1200,
+        max_completion_tokens: 1200,
         temperature: 0.3
       },
       {
