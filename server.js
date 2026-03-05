@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("AI Server is running");
+  res.send("AI server running");
 });
 
 app.post("/", async (req, res) => {
@@ -28,8 +28,8 @@ app.post("/", async (req, res) => {
       },
       {
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
         }
       }
     );
@@ -37,20 +37,20 @@ app.post("/", async (req, res) => {
     const text =
       response.data.output?.[0]?.content?.[0]?.text || "";
 
-    res.json({
-      output_text: text
-    });
+    res.json({ output_text: text });
 
-  } catch (err) {
+  } catch (error) {
 
     res.status(500).json({
-      error: err.response?.data || err.message
+      error: error.response?.data || error.message
     });
 
   }
 
 });
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
