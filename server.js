@@ -24,9 +24,8 @@ app.post("/", async (req, res) => {
 
         input: req.body.input,
 
-        max_output_tokens: 800,
-
-        temperature: 0.3
+        max_output_tokens: 800
+        
       },
       {
         headers: {
