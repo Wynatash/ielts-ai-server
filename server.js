@@ -1,57 +1,121 @@
 import express from "express";
-import axios from "axios";
 import cors from "cors";
+import OpenAI from "openai";
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 app.get("/", (req, res) => {
-  res.send("AI Server Running");
+  res.send("IELTS AI Server running");
 });
 
 app.post("/grade", async (req, res) => {
 
-  if (req.body.secret !== "IELTS2026_SECURE") {
-    return res.status(403).json({ error: "Unauthorized" });
-  }
-
-  const prompt = req.body.input;
-
   try {
 
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
+    const { essay, taskImage, mode } = req.body;
+
+    if (!essay) {
+      return res.status(400).json({ error: "Essay missing" });
+    }
+
+    // ==========================
+    // SOCRATIC MODE
+    // ==========================
+
+    if (mode === "socratic") {
+
+      const response = await client.responses.create({
         model: "gpt-4.1-mini",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 600
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
-        }
-      }
-    );
+        input: `
+You are an IELTS Writing coach.
 
-    const text = response.data.choices?.[0]?.message?.content || "";
+Student essay:
+${essay}
 
-    res.json({
-      output_text: text
+Do NOT give corrections.
+
+Instead give:
+
+1. 3 Socratic questions
+2. 2 hints
+
+Return JSON:
+
+{
+"questions":[],
+"hints":[]
+}
+`
+      });
+
+      const text = response.output_text;
+
+      return res.json(JSON.parse(text));
+
+    }
+
+    // ==========================
+    // FINAL GRADING
+    // ==========================
+
+    const prompt = `
+You are a certified IELTS examiner.
+
+Grade the following essay using IELTS Writing Task 1 criteria.
+
+Essay:
+${essay}
+
+Return ONLY JSON:
+
+{
+"overall":number,
+"TA":number,
+"CC":number,
+"LR":number,
+"GRA":number,
+
+"grammar_errors":[
+{
+"start":number,
+"end":number,
+"explanation":"string",
+"correction":"string"
+}
+],
+
+"feedback":{
+"strengths":"string",
+"weaknesses":"string",
+"improvements":"string"
+}
+}
+`;
+
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      input: prompt
     });
 
-  } catch (err) {
+    const text = response.output_text;
 
-    console.log(err.response?.data || err.message);
+    const json = JSON.parse(text);
+
+    res.json(json);
+
+  } catch (error) {
+
+    console.error(error);
 
     res.status(500).json({
-      error: err.response?.data || err.message
+      error: "AI grading failed"
     });
 
   }
@@ -61,5 +125,5 @@ app.post("/grade", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("AI Server Running");
+  console.log("Server running on port", PORT);
 });
