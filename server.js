@@ -7,52 +7,66 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-app.post("/", async (req, res) => {
-
-  if (req.body.secret !== "IELTS2026_SECURE") {
-    return res.status(403).json({ error: "Unauthorized" });
-  }
-
+app.post("/grade", async (req, res) => {
   try {
+    const essay = req.body.essay;
+
+    if (!essay) {
+      return res.status(400).json({ error: "Missing essay" });
+    }
+
+    const prompt = `
+You are an IELTS Writing examiner.
+
+Analyze the essay and give feedback:
+
+1. Estimated band score (0-9)
+2. Grammar mistakes
+3. Vocabulary feedback
+4. Suggestions for improvement
+
+Essay:
+${essay}
+`;
 
     const response = await axios.post(
       "https://api.openai.com/v1/responses",
       {
-        model: "gpt-5-nano",
-
-        input: req.body.input,
-
+        model: "gpt-4.1-mini",
+        input: prompt,
         max_output_tokens: 800
-        
       },
       {
         headers: {
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         }
       }
     );
 
-    const text = response.data.output?.[0]?.content?.[0]?.text || "";
+    const output = response.data.output_text;
+
+    if (!output) {
+      return res.json({
+        result: "AI did not return content."
+      });
+    }
 
     res.json({
-      output_text: text
+      result: output
     });
 
-  } catch (err) {
-
-    console.log(err.response?.data || err.message);
+  } catch (error) {
+    console.error(error.response?.data || error.message);
 
     res.status(500).json({
-      error: err.response?.data || err.message
+      error: error.response?.data || error.message
     });
-
   }
-
 });
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
 });
