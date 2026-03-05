@@ -3,8 +3,11 @@ import axios from "axios";
 import cors from "cors";
 
 const app = express();
+
 app.use(cors());
 app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
 
 app.post("/", async (req, res) => {
 
@@ -17,15 +20,20 @@ app.post("/", async (req, res) => {
     const response = await axios.post(
       "https://api.openai.com/v1/chat/completions",
       {
-        model: "gpt-4.1-mini",
+        model: "gpt-5-nano",
         messages: [
-          { role: "user", content: req.body.input }
+          {
+            role: "user",
+            content: req.body.input
+          }
         ],
-        max_tokens: 800
+        max_tokens: 1200,
+        temperature: 0.3
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json"
         }
       }
     );
@@ -37,10 +45,15 @@ app.post("/", async (req, res) => {
     });
 
   } catch (err) {
+
+    console.error(err.response?.data || err.message);
+
     res.status(500).json({
       error: err.response?.data || err.message
     });
   }
 });
 
-app.listen(3000, () => console.log("Server running"));
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
