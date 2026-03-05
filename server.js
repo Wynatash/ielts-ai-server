@@ -8,41 +8,53 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("AI server running");
+  res.send("AI Server Running");
 });
 
-app.post("/", async (req, res) => {
+app.post("/grade", async (req, res) => {
 
-  if (req.body.secret !== "IELTS2026_SECURE") {
-    return res.status(403).json({ error: "Unauthorized" });
-  }
+  const essay = req.body.essay;
+  const question = req.body.question;
 
   try {
 
     const response = await axios.post(
-      "https://api.openai.com/v1/responses",
+      "https://api.openai.com/v1/chat/completions",
       {
         model: "gpt-4.1-mini",
-        input: req.body.input,
-        max_output_tokens: 800
+        messages: [
+          {
+            role: "user",
+            content: `Grade this IELTS Task 1 essay and give band score and feedback.
+
+Question:
+${question}
+
+Essay:
+${essay}`
+          }
+        ],
+        max_tokens: 500
       },
       {
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json"
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
         }
       }
     );
 
-    const text =
-      response.data.output?.[0]?.content?.[0]?.text || "";
+    const text = response.data.choices[0].message.content;
 
-    res.json({ output_text: text });
+    res.json({
+      output: text
+    });
 
-  } catch (error) {
+  } catch (err) {
+
+    console.log(err.response?.data || err.message);
 
     res.status(500).json({
-      error: error.response?.data || error.message
+      error: "AI call failed"
     });
 
   }
@@ -52,5 +64,5 @@ app.post("/", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log("Server running");
 });
